@@ -274,7 +274,7 @@ function antennatoggle(){
     antennaActive = !antennaActive;
 }
 
-function placePhasedArray(centerX, centerY, count, spacing, freq, steerAngleDeg, focalLength = Infinity) {
+function placePhasedArray(centerX, centerY, count, spacing, freq, steerAngleDeg, inverseFocus = false, focalLength = Infinity) {
     arrFreq = freq;
   const steerAngleRad = steerAngleDeg * Math.PI / 180;
 
@@ -300,6 +300,7 @@ function placePhasedArray(centerX, centerY, count, spacing, freq, steerAngleDeg,
         const r = Math.sqrt(xi * xi + focalLength * focalLength);
         const r_center = focalLength;  // at xi = 0
         phaseFocus = k * (r - r_center);
+        if(inverseFocus)phaseFocus *= -1;
     }
 
     const totalPhase = phaseSteer + phaseFocus;
