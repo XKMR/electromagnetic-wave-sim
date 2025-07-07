@@ -4,6 +4,7 @@ const ctx = canvas.getContext("2d");
 const size = canvas.width;
 var tickLength = 1/32;
 
+var radarPulseMode = false;
 var antennaActive = true;
 var amp = 10
 let mode = "antenna"; // or "wall"
@@ -11,7 +12,22 @@ let isDrawing = false;
 let freq = 1;
 let phase = 0;
 var selector = "freq"; //or "phase"
+const sensorHistory = {};  // global
+var arrFreq = 1;
 
+var focalPoint = 100;
+var angle = 0;
+
+let viewMode = "plot"
+var rmsSum = [];
+var rmsCount = 0;
+
+for (let y = 0; y < size; y++) {
+  rmsSum[y] = [];
+  for (let x = 0; x < size; x++) {
+    rmsSum[y][x] = 0;
+  }
+}
 var dataLength = 1000
 var dps = []; // dataPoints
 var chart = new CanvasJS.Chart("chartContainer", {
@@ -40,6 +56,7 @@ var updateChart = function (value) {
 
 	chart.render();
 };
+
 
 // Simulation grids
 var u = [], u_prev = [], u_next = [], antenna = [], wall = [], sensor = [];
@@ -139,8 +156,14 @@ function step() {
       u_next[y][x] *= damping;
 
       if (antenna[y][x][0] && antennaActive) {
+        if(radarPulseMode){
+            if (t % 500 < 40) {  // pulse every 200 ticks, lasts 5 ticks
+            u_next[y][x] += Math.sin(t * 0.2 * antenna[y][x][1] + antenna[y][x][2]) * amp;
+        }
+        }else{
         u_next[y][x] += Math.sin(t * 0.2 * antenna[y][x][1] + antenna[y][x][2]) * amp;
-      }
+        }
+    }
     }
   }
 
@@ -148,7 +171,13 @@ function step() {
   [u_prev, u, u_next] = [u, u_next, u_prev];
 
     //placePhasedArray(200, 398, 100, 1, 3, (t/50)%100 - 50); // x=128, y=200, 21 antennas, spacing=3 px, freq=1, 30° beam
-
+    //placePhasedArray(200, 398, 100, 1, 3, (t/25)%60 - 30, 300)
+for (let y = 0; y < size; y++) {
+  for (let x = 0; x < size; x++) {
+    rmsSum[y][x] += u[y][x] * u[y][x];  // accumulate square
+  }
+}
+rmsCount++;
   t++;
 }
 
@@ -159,11 +188,19 @@ function render() {
 
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
+      let specialFlag = false;
       const i = (y * size + x) * 4;
       const val = u[y][x];
-      let r = (Math.abs(val) + val)/2 * 255;
-      let b = (Math.abs(val) - val)/2 * 255;
-      let g = 0
+let r = 0, g = 0, b = 0;
+
+if (viewMode === "rms") {
+  const meanSquare = rmsSum[y][x] / rmsCount;
+  const intensity = Math.sqrt(meanSquare);  // RMS = sqrt(mean(square))
+  r = b = intensity * 255 * contrast;  // grayscale
+} else {
+  r = (Math.abs(val) + val) / 2 * 255 * contrast;
+  b = (Math.abs(val) - val) / 2 * 255 * contrast;
+}
 
 
         for (let dy = -1; dy <= 1; dy++)
@@ -178,21 +215,28 @@ function render() {
                         r = 255
                         g = 165
                         b = 0
+                        specialFlag = true;
                         }
                     if(antenna[yy][xx][0])
                         {
                         r = 0
                         g = 255
                         b = 0
+                        specialFlag = true;
                         }
                     }
                 }
             }
-    if (wall[y][x]) r = b = 100;
+    if (wall[y][x]){ 
+        r = b = 100;
+        specialFlag = true;
+    }
   
+    if(!specialFlag){
     r *= contrast;
     g *= contrast;
-    b *= contrast
+    b *= contrast;
+    }
 
     if(r>255) r = 255;
     if(g>255) g = 255;
@@ -212,6 +256,7 @@ function render() {
 function loop() {
   step();
   render();
+
 }
 
 let interval = setInterval(function(){
@@ -219,23 +264,24 @@ let interval = setInterval(function(){
 }, 1)
 
 function updateContrast(){
-    contrast = document.getElementById("contrastSlider").value/10
+    contrast = document.getElementById("contrastSlider").value/100
 }
 function selectorclick(){
-    selector = (selector==="freq")? "phase":"freq";
+    if(mode === "antenna")selector = (selector==="freq")? "phase":"freq";
+    console.log(selector)
 }
 function antennatoggle(){
     antennaActive = !antennaActive;
 }
 
-function placePhasedArray(centerX, centerY, count, spacing, freq, steerAngleDeg) {
+function placePhasedArray(centerX, centerY, count, spacing, freq, steerAngleDeg, focalLength = Infinity) {
+    arrFreq = freq;
   const steerAngleRad = steerAngleDeg * Math.PI / 180;
 
-  const lambda = 2 * Math.PI / (0.5 * freq); // wavelength from ω = 0.5 * freq
-  const k = 2 * Math.PI / lambda;           // wave number
-
-  const d = spacing;                        // element spacing (pixels)
-  const phaseIncrement = -k * d * Math.sin(steerAngleRad); // progressive phase shift
+  const omega = 0.5 * freq;
+  const lambda = 2 * Math.PI / omega;
+  const k = 2 * Math.PI / lambda;
+  const d = spacing;
 
   const startX = centerX - Math.floor(count / 2) * d;
 
@@ -243,12 +289,37 @@ function placePhasedArray(centerX, centerY, count, spacing, freq, steerAngleDeg)
     const x = Math.floor(startX + i * d);
     const y = centerY;
 
+    const xi = (i - (count - 1) / 2) * d;
+
+    // Phase for beam steering
+    const phaseSteer = -k * xi * Math.sin(steerAngleRad);
+
+    // Corrected focusing phase
+    let phaseFocus = 0;
+    if (focalLength !== Infinity) {
+        const r = Math.sqrt(xi * xi + focalLength * focalLength);
+        const r_center = focalLength;  // at xi = 0
+        phaseFocus = k * (r - r_center);
+    }
+
+    const totalPhase = phaseSteer + phaseFocus;
+
     if (x >= 0 && x < size && y >= 0 && y < size) {
       antenna[y][x][0] = 1;
       antenna[y][x][1] = freq;
-      antenna[y][x][2] = i * phaseIncrement;  // steer by phase!
+      antenna[y][x][2] = totalPhase;
+      //console.log(antenna[y][x][2])
     }
   }
-
-  //document.getElementById("mode").innerText = `Phased array: ${count} elements @ ${steerAngleDeg}°`;
+}
+function resetRMS() {
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      rmsSum[y][x] = 0;
+    }
+  }
+  rmsCount = 0;
+}
+function toggleViewMode(){
+    viewMode = (viewMode === "rms")? "plot":"rms";
 }
