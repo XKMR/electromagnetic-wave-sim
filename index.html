@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8" />
+    <title>Radar SIM</title>
+</head>
+<body>
+    <canvas id="canvas" width="400" height="400"></canvas>
+    <input type="range" id="contrastSlider" onchange="updateContrast()">
+    <p>sensor value: </p><p id="sensorval"></p>
+    <p>mode: </p><p id="mode"></p>
+    <button onclick="selectorclick()">select atr</button>
+    <button onclick="antennatoggle()">toggle antennas</button>
+
+    <div id="chartContainer" style="height: 370px; width:100%;"></div>
+    <script src="graph.js"></script>
+    <script src="main.js"></script>
+</body>
+</html>
