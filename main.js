@@ -131,6 +131,7 @@ function drawAt(e) {
 
 // Simulation step
 let t = 0;
+let angleDir = false;
 function step() {
   for (let y = 1; y < size - 1; y++) {
     for (let x = 1; x < size - 1; x++) {
@@ -171,7 +172,12 @@ function step() {
   [u_prev, u, u_next] = [u, u_next, u_prev];
 
     //placePhasedArray(200, 398, 100, 1, 3, (t/50)%100 - 50); // x=128, y=200, 21 antennas, spacing=3 px, freq=1, 30° beam
-    //placePhasedArray(200, 398, 100, 1, 3, (t/25)%60 - 30, 300)
+    //placePhasedArray(200, 598, 100, 1, 3, (t/25)%60 - 30, false, 1000)
+
+    /*let beamAngle = (t/7)%5000 - 200;
+    if(beamAngle == 2500 || beamAngle == -2500) angleDir = (angleDir==true)? false:true;
+    if(angleDir) beamAngle *= -1
+    placePhasedArray(200, 398, 100, 1, 3, 0, false, beamAngle); // Beam at 30°*/
 for (let y = 0; y < size; y++) {
   for (let x = 0; x < size; x++) {
     rmsSum[y][x] += u[y][x] * u[y][x];  // accumulate square
@@ -309,7 +315,7 @@ function placePhasedArray(centerX, centerY, count, spacing, freq, steerAngleDeg,
       antenna[y][x][0] = 1;
       antenna[y][x][1] = freq;
       antenna[y][x][2] = totalPhase;
-      //console.log(antenna[y][x][2])
+      console.log(antenna[y][x][2])
     }
   }
 }
@@ -323,4 +329,42 @@ function resetRMS() {
 }
 function toggleViewMode(){
     viewMode = (viewMode === "rms")? "plot":"rms";
+}
+
+
+function placePhasedArraySimplified(middleX, middleY, count, spacing, freq, angle, focalDistance, inverseFocus = false) {
+
+  const focusNegative = inverseFocus? -1:1;
+
+  const omega = 0.5 * freq;
+  const lambda = 2 * Math.PI / omega;
+  const steerAngleRad = angle * Math.PI / 180 * focusNegative
+
+  const halfCount = Math.floor(count / 2);
+
+  // Focal point coordinates based on angle
+  const focalX = middleX + focalDistance * Math.sin(steerAngleRad);
+  const focalY = middleY + focalDistance * Math.cos(steerAngleRad);
+
+  
+
+  // Compute the minimum distance (center element to focal point)
+  const minDistance = Math.hypot(focalX - middleX, focalY - middleY);
+
+  for (let i = 0; i < count; i++) {
+    const x = middleX - halfCount + i;
+
+    const dx = x - middleX;
+    const elementX = middleX + dx * spacing;
+    const elementY = middleY;
+
+    const distToFocal = Math.hypot(focalX - elementX, focalY - elementY);
+
+    const phaseShift = (distToFocal - minDistance) * (2 * Math.PI / lambda) * focusNegative
+
+    antenna[elementY][elementX] = [1, freq, phaseShift];
+
+    console.log(`x=${elementX}, phase=${phaseShift.toFixed(3)}`);
+  }
+  console.log("Target Point: ", focalX, ":", focalY)
 }
