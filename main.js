@@ -18,9 +18,12 @@ var arrFreq = 1;
 var focalPoint = 100;
 var angle = 0;
 
+var sensorRMS = 0;
+
 let viewMode = "plot"
 var rmsSum = [];
 var rmsCount = 0;
+
 
 for (let y = 0; y < size; y++) {
   rmsSum[y] = [];
@@ -28,8 +31,10 @@ for (let y = 0; y < size; y++) {
     rmsSum[y][x] = 0;
   }
 }
-var dataLength = 1000
+var dataLength = 10;
+var rmslength = 1000;
 var dps = []; // dataPoints
+var rmsdps = []
 var chart = new CanvasJS.Chart("chartContainer", {
 	title :{
 		text: "Dynamic Data"
@@ -37,7 +42,12 @@ var chart = new CanvasJS.Chart("chartContainer", {
 	data: [{
 		type: "line",
 		dataPoints: dps
-	}]
+	},
+  {
+    type: "line",
+    dataPoints: rmsdps
+  }
+]
 });
 
 var updateChart = function (value) {
@@ -52,7 +62,23 @@ var updateChart = function (value) {
 
 	if (dps.length > dataLength) {
 		dps.shift();
+    let root = []
+    let mean = 0;
+    for(number of dps){
+      root.push(number.y * number.y)
+    }
+    for(number of root){
+      mean += number
+    }
+    mean = mean / dataLength;
+    mean = Math.sqrt(mean);
+    sensorRMS = mean;
+    document.getElementById("sensorval").innerText = mean;
+    rmsdps.push({x: xVal, y: mean})
 	}
+  if(rmsdps.length > rmslength){
+    rmsdps.shift();
+  }
 
 	chart.render();
 };
@@ -140,7 +166,7 @@ function step() {
         continue;
       }
       if (sensor[y][x]){
-        document.getElementById("sensorval").innerText = u_prev[y][x];
+        //document.getElementById("sensorval").innerText = u_prev[y][x];
         updateChart(u_prev[y][x]);
       }
 
@@ -173,7 +199,7 @@ function step() {
 
     //placePhasedArray(200, 398, 100, 1, 3, (t/50)%100 - 50); // x=128, y=200, 21 antennas, spacing=3 px, freq=1, 30° beam
     //placePhasedArray(200, 598, 100, 1, 3, (t/25)%60 - 30, false, 1000)
-
+    //placePhasedArraySimplified(200, 398, 50, 1, 3, 0, (t/10)%200)
     /*let beamAngle = (t/7)%5000 - 200;
     if(beamAngle == 2500 || beamAngle == -2500) angleDir = (angleDir==true)? false:true;
     if(angleDir) beamAngle *= -1
@@ -338,7 +364,7 @@ function placePhasedArraySimplified(middleX, middleY, count, spacing, freq, angl
 
   const omega = 0.5 * freq;
   const lambda = 2 * Math.PI / omega;
-  const steerAngleRad = angle * Math.PI / 180 * focusNegative
+  const steerAngleRad = (-angle+180) * Math.PI / 180 * focusNegative
 
   const halfCount = Math.floor(count / 2);
 
@@ -360,11 +386,11 @@ function placePhasedArraySimplified(middleX, middleY, count, spacing, freq, angl
 
     const distToFocal = Math.hypot(focalX - elementX, focalY - elementY);
 
-    const phaseShift = (distToFocal - minDistance) * (2 * Math.PI / lambda) * focusNegative
+    const phaseShift = (distToFocal - minDistance) * (2 * Math.PI / lambda) * focusNegative * 0.75
 
     antenna[elementY][elementX] = [1, freq, phaseShift];
 
-    console.log(`x=${elementX}, phase=${phaseShift.toFixed(3)}`);
+    //console.log(`x=${elementX}, phase=${phaseShift.toFixed(3)}`);
   }
-  console.log("Target Point: ", focalX, ":", focalY)
+  //console.log("Target Point: ", focalX, ":", focalY)
 }
