@@ -5,3 +5,9 @@ the UI is lacking, but the simulation is very capable
 # example command
 placePhasedArray(200, 398, 100, 1, 3, 0, false, 500);<br/>
 (middleX, middleY, Count, Spacing, Freq, inverseFocalPoint, focus distance)
+# keys
+A: place antenna<br/>
+S: place sensor<br/>
+W: place wall<br/>
+X: remove<br/>
+Scroll-Wheel while in antenna mode: change freq/phase
